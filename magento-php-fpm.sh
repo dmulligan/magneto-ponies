@@ -69,9 +69,9 @@ else
       exit 1
   else
       # Cloud server - install IUS from repo
-      iusrelease=$(curl -s http://dl.iuscommunity.org/pub/ius/stable/CentOS/$MAJORVERS/x86_64/ | egrep -o 'href="ius-release.*rpm"' | cut -d'"' -f2)
+      iusrelease=$(curl -s https://dl.iuscommunity.org/pub/ius/stable/CentOS/$MAJORVERS/x86_64/ | egrep -o 'href="ius-release.*rpm"' | cut -d'"' -f2)
       echo " - installing ius-release..."
-      yum -q -y install http://dl.iuscommunity.org/pub/ius/stable/CentOS/$MAJORVERS/x86_64/$iusrelease      
+      yum -q -y install https://dl.iuscommunity.org/pub/ius/stable/CentOS/$MAJORVERS/x86_64/$iusrelease      
       rpm --import /etc/pki/rpm-gpg/IUS-COMMUNITY-GPG-KEY
   fi
 fi
@@ -316,7 +316,7 @@ php_admin_flag[zlib.output_compression] = On" > /etc/php-fpm.d/${DOMAINNAME}.con
 echo "[${DOMAINNAME}-admin]
 listen = /var/run/php-fpm/${DOMAINNAME}-admin.sock
 listen.owner = ${USERNAME}
-listen.group =${WEBSERVER}
+listen.group = ${WEBSERVER}
 listen.mode = 0660
 user = ${USERNAME}
 group = ${FPMGROUP}

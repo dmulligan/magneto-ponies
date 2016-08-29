@@ -67,9 +67,9 @@ else
       exit 1
   else
       # Cloud server - install IUS from repo
-      iusrelease=$(curl -s http://dl.iuscommunity.org/pub/ius/stable/CentOS/$MAJORVERS/x86_64/ | egrep -o 'href="ius-release.*rpm"' | cut -d'"' -f2)
+      iusrelease=$(curl -s https://dl.iuscommunity.org/pub/ius/stable/CentOS/$MAJORVERS/x86_64/ | egrep -o 'href="ius-release.*rpm"' | cut -d'"' -f2)
       echo " - installing ius-release..."
-      yum -q -y install http://dl.iuscommunity.org/pub/ius/stable/CentOS/$MAJORVERS/x86_64/$iusrelease      
+      yum -q -y install https://dl.iuscommunity.org/pub/ius/stable/CentOS/$MAJORVERS/x86_64/$iusrelease      
       rpm --import /etc/pki/rpm-gpg/IUS-COMMUNITY-GPG-KEY
   fi
 fi
@@ -287,21 +287,11 @@ else
 fi
 
 
-
-# Redis Cleanup script 
-HOMEDIR=$(getent passwd $USERNAME | cut -d':' -f6)
-cd $HOMEDIR
-git clone https://github.com/samm-git/cm_redis_tools.git
-cd cm_redis_tools
-git submodule update --init --recursive
-
 # Create the cron job, and the main Magento Cron while we're here
-echo "## Redis cleanup job
-33 2 * * * /usr/bin/php $HOMEDIR/cm_redis_tools/rediscli.php -s 127.0.0.1 -p 6379 -d 0,1,2
-
+echo "
 ## Main Magento cron job
-*/5 * * * * /bin/bash $HOMEDIR/httpdocs/cron.sh" >> /tmp/rediscron
-crontab -l -u $USERNAME | cat - /tmp/rediscron | crontab -u $USERNAME -
+*/5 * * * * /bin/bash $HOMEDIR/httpdocs/cron.sh" >> /tmp/magentocron
+crontab -l -u $USERNAME | cat - /tmp/magentocron | crontab -u $USERNAME -
 
 
 
@@ -312,9 +302,13 @@ if [[ $DBSERVER == 1 ]]; then
 MEMORY=`cat /proc/meminfo | grep MemTotal | awk 'OFMT="%.0f" {sum=$2/1024/1024}; END {print sum}'`
 if [[ ${MEMORY} -lt 12 ]]
 then
-  INNODBMEM=`printf "%.0f" $(bc <<< ${MEMORY}*0.75)`
+  INNODBMEM=`printf "%.0f" $(bc <<< ${MEMORY}*0.75)`G
 else
-  INNODBMEM=6
+  INNODBMEM=6G
+fi
+if [[ ${MEMORY} -lt 2 ]]
+then
+INNODBMEM=256M
 fi
 
 PREPDIRCHECK=`ls /home/rack/ | grep magentodbsetup`
@@ -351,6 +345,8 @@ datadir                              = /var/lib/mysql
 socket                               = /var/lib/mysql/mysql.sock
 tmpdir                               = /dev/shm
 
+performance-schema		= OFF
+
 ## Cache
 table-definition-cache               = 4096
 table-open-cache                     = 4096
@@ -386,7 +382,7 @@ myisam-sort-buffer-size              = 256M
 
 ## InnoDB
 #innodb-autoinc-lock-mode            = 2
-innodb-buffer-pool-size              = ${INNODBMEM}G
+innodb-buffer-pool-size              = ${INNODBMEM}
 #innodb-file-format                  = Barracuda
 innodb-file-per-table                = 1
 innodb-log-file-size                 = 200M
@@ -532,6 +528,8 @@ then
   echo -ne "Creating database and user..."
   mysql -uroot -e "CREATE DATABASE \`${DBNAME}\`"
   mysql -uroot -e "GRANT ALL PRIVILEGES ON \`${DBNAME}\`.* to \`${USERNAME}\`@'localhost' IDENTIFIED BY '${MYSQLUSERPASS}'"
+  mysql -uroot -e "GRANT ALL PRIVILEGES ON \`${DBNAME}\`.* to \`${USERNAME}\`@'127.0.0.1' IDENTIFIED BY '${MYSQLUSERPASS}'"
+  mysql -uroot -e "GRANT ALL PRIVILEGES ON \`${DBNAME}\`.* to \`${USERNAME}\`@'::1'       IDENTIFIED BY '${MYSQLUSERPASS}'"
 fi
 
 
@@ -606,6 +604,8 @@ fi
 
 
 
+## Logrotate config
+source <(curl -s https://raw.githubusercontent.com/whyneus/magneto-ponies/master/magento-logrotate.sh)
 
 
 
@@ -664,3 +664,12 @@ echo "
 Redis is available on 127.0.0.1:6379 and /var/run/redis/redis.sock
 Memcached is available on 127.0.0.1:11211
 "
+
+
+# HANDOVER details
+
+if [[ $MAGENTO2 == true ]]; then
+    source <(curl -s https://raw.githubusercontent.com/whyneus/magneto-ponies/master/handover-magento2.sh)
+else 
+    source <(curl -s https://raw.githubusercontent.com/whyneus/magneto-ponies/master/handover-magento1.sh)
+fi
